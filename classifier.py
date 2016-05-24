@@ -3,7 +3,8 @@ import re
 import json
 from collections import defaultdict
 
-news_dir = './news'
+data_dir = './data'
+news_dir = './data/news'
 count_threshold = 4
 
 def read_files():
@@ -54,7 +55,8 @@ def get_words_list():
 
 def write_to_files(words):
     for category in words:
-        f = open(category, 'w+')
+        filename = os.path.join(data_dir, category)
+        f = open(filename, 'w+')
         f.write('\n'.join(words[category].keys()))
         f.close()
 
