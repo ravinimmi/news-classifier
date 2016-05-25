@@ -1,64 +1,71 @@
 import os
 import re
 import json
-from collections import defaultdict
+import numpy as np
+from sklearn import linear_model
+from random import shuffle
 
 data_dir = './data'
 news_dir = './data/news'
-count_threshold = 4
+
+categories = {
+                'business': 1,
+                'entertainment': 2,
+                'politics': 3,
+                'sport': 4,
+                'tech': 5
+        }
+
+def get_feature_vector(contents):
+    contents = {word: 1 for word in contents}
+    feature_vector = []
+    for category in categories:
+        filename = os.path.join(data_dir, category+'.txt')
+        f = open(filename)
+        words = f.read().split('\n')
+        for word in words:
+            x = word in contents
+            feature_vector.append(int(x))
+    return feature_vector
 
 def read_files():
-    words = {}
+    X = []
+    Y = []
     for d in os.listdir(news_dir):
         sub_dir = os.path.join(news_dir, d)
         if os.path.isdir(sub_dir):
-            words[d] = defaultdict(int)
             for f in os.listdir(sub_dir):
-                file_map = {}
                 file_path = os.path.join(sub_dir, f)
                 contents = open(file_path).read()
                 contents = re.compile('\w+').findall(contents)
-                for word in contents:
-                    file_map[word] = 1
-                for word in file_map:
-                    words[d][word] += 1
-    return words
+                X.append(get_feature_vector(contents))
+                Y.append(categories[d])
+    return X, Y
 
-def get_distinct_words(words):
-    distinct_words = defaultdict(dict)
-    for category in words:
-        remaining_category_words = set([])
-        for cat in words:
-            if cat != category:
-                remaining_category_words.update(set(words[cat].keys()))
-        category_words = words[category].keys()
-        for word in category_words:
-            if word not in remaining_category_words:
-                distinct_words[category][word] = words[category][word]
-    return distinct_words
+def split_dataset(X, Y):
+    N = len(X)
+    indices = range(N)
+    shuffle(indices)
+    shuffled_X = [X[index] for index in indices]
+    shuffled_Y = [Y[index] for index in indices]
+    X = shuffled_X[:(N * 8)/10]
+    Y = shuffled_Y[:(N * 8)/10]
+    X_test = shuffled_X[(N * 8)/10:]
+    Y_test = shuffled_Y[(N * 8)/10:]
+    return X, Y, X_test, Y_test
 
-def words_above_threshold(words):
-    distinct_words = defaultdict(dict)
-    for category in words:
-        category_words = words[category].keys()
-        for word in category_words:
-            if words[category][word] >= count_threshold:
-                distinct_words[category][word] = words[category][word]
-    return distinct_words
-
-def get_words_list():
-    words = read_files()
-    distinct_words = get_distinct_words(words) 
-    distinct_words = words_above_threshold(distinct_words)
-    return distinct_words
+def classify(X, Y, X_test, Y_test):
+    logreg = linear_model.LogisticRegression()
+    print "Training..."
+    logreg.fit(X, Y)
+    print "Predicting..."
+    Y_predicted = logreg.predict(X_test)
+    matches = [float(Y_predicted[i]==Y_test[i]) for i in range(len(Y_test))]
+    print "Accuracy = {accuracy:.2f}%".format(accuracy=100*sum(matches)/len(X_test))
 
 
-def write_to_files(words):
-    for category in words:
-        filename = os.path.join(data_dir, category)
-        f = open(filename, 'w+')
-        f.write('\n'.join(words[category].keys()))
-        f.close()
+X, Y = read_files()
+X, Y, X_test, Y_test = split_dataset(X, Y)
+classify(X, Y, X_test, Y_test)
 
-write_to_files(get_words_list())
 
